@@ -2,7 +2,11 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import BookCover from "./components/BookCover";
+import dynamic from "next/dynamic";
+
+const BookCover = dynamic(() => import("./components/BookCover"), {
+  ssr: false,
+});
 
 // List of all books in the public folder
 const books = [
