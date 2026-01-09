@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["pdfjs-dist"],
   webpack: (config) => {
     // Required for react-pdf to work with Next.js
     config.resolve.alias.canvas = false;
