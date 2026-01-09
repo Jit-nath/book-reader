@@ -213,7 +213,7 @@ export default function PDFViewer({ file }: PDFViewerProps) {
   }, [numPages]);
 
   // Calculate scale based on fit mode
-  useEffect(() => {
+  const updateScale = useCallback(() => {
     if (fitMode === "manual" || !containerRef.current || pageSize.width === 0)
       return;
 
@@ -227,6 +227,21 @@ export default function PDFViewer({ file }: PDFViewerProps) {
       setScale(containerHeight / pageSize.height);
     }
   }, [fitMode, pageSize]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    updateScale();
+
+    const observer = new ResizeObserver(() => {
+      updateScale();
+    });
+
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [updateScale]);
 
   const zoomIn = () => {
     setFitMode("manual");
@@ -316,11 +331,11 @@ export default function PDFViewer({ file }: PDFViewerProps) {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
       {/* Sidebar - Table of Contents */}
       {showOutline && (
         <div
-          className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0 relative"
+          className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0 absolute md:relative z-20 shadow-2xl md:shadow-none"
           style={{ width: sidebarWidth }}
         >
           {/* Resize Handle */}
@@ -350,24 +365,26 @@ export default function PDFViewer({ file }: PDFViewerProps) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
         {/* Controls */}
-        <div className="flex items-center justify-between px-6 py-4 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800">
+        <div className="flex flex-wrap items-center justify-between px-4 md:px-6 py-4 bg-zinc-900/80 backdrop-blur-sm border-b border-zinc-800 gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowOutline(!showOutline)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                 showOutline
                   ? "bg-violet-600 text-white"
                   : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
               }`}
               title="Table of Contents"
             >
-              ☰ Index
+              <span>☰</span>
+              <span className="hidden sm:inline">Index</span>
             </button>
 
-            <span className="text-zinc-400 text-sm">
-              <span className="text-white font-semibold">{numPages}</span> pages
+            <span className="text-zinc-400 text-sm whitespace-nowrap">
+              <span className="text-white font-semibold">{numPages}</span>{" "}
+              <span className="hidden sm:inline">pages</span>
             </span>
             <input
               type="number"
@@ -384,25 +401,27 @@ export default function PDFViewer({ file }: PDFViewerProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={fitToWidth}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                 fitMode === "width"
                   ? "bg-violet-600 text-white"
                   : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
               }`}
               title="Fit to width"
             >
-              ↔ Width
+              <span>↔</span>
+              <span className="hidden sm:inline">Width</span>
             </button>
             <button
               onClick={fitToHeight}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
                 fitMode === "height"
                   ? "bg-violet-600 text-white"
                   : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
               }`}
               title="Fit to height"
             >
-              ↕ Height
+              <span>↕</span>
+              <span className="hidden sm:inline">Height</span>
             </button>
 
             <div className="w-px h-6 bg-zinc-700 mx-2" />

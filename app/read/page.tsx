@@ -38,13 +38,13 @@ function ReaderContent() {
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-white">
       {/* Header */}
-      <header className="flex items-center gap-4 px-6 py-4 bg-zinc-900 border-b border-zinc-800">
+      <header className="flex items-center gap-4 px-4 md:px-6 py-4 bg-zinc-900 border-b border-zinc-800">
         <Link
           href="/"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all text-sm font-medium"
+          className="flex items-center gap-2 px-3 py-2 md:px-4 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-all text-sm font-medium"
         >
           <span>←</span>
-          <span>Library</span>
+          <span className="hidden sm:inline">Library</span>
         </Link>
         <h1 className="text-lg font-semibold truncate flex-1">{bookTitle}</h1>
       </header>
