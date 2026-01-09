@@ -1,28 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "drive.google.com",
-      },
-      {
-        protocol: "https",
-        hostname: "lh3.googleusercontent.com",
-      },
-      {
-        protocol: "https",
-        hostname: "cb-thumbnails.googleusercontent.com",
-      },
-    ],
-  },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "2mb",
-    },
-  },
   webpack: (config) => {
+    // Required for react-pdf to work with Next.js
     config.resolve.alias.canvas = false;
     return config;
   },
