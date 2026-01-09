@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import BookCover from "./components/BookCover";
 
 // List of all books in the public folder
 const books = [
@@ -96,15 +97,21 @@ function BookCard({ book, index }: { book: string; index: number }) {
       className="group relative block"
     >
       <div
-        className={`relative aspect-[3/4] rounded-xl bg-gradient-to-br ${color.bg} p-4 shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:shadow-${color.accent}-500/20 overflow-hidden`}
+        className={`relative aspect-[3/4] rounded-xl bg-zinc-800 shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl group-hover:shadow-${color.accent}-500/20 overflow-hidden`}
       >
-        {/* Decorative elements */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-4 left-4 w-8 h-8 border-2 border-white rounded-full" />
-          <div className="absolute bottom-8 right-4 w-16 h-1 bg-white rounded-full" />
-          <div className="absolute bottom-12 right-4 w-12 h-1 bg-white rounded-full" />
-          <div className="absolute bottom-16 right-4 w-8 h-1 bg-white rounded-full" />
-        </div>
+        <BookCover file={`/${book}`} fallbackColor={color} title={title} />
+
+        {/* Book spine effect */}
+        <div className="absolute left-0 top-0 bottom-0 w-3 bg-black/20 pointer-events-none z-10" />
+
+        {/* Title Overlay - gradient provided by cover component fallback, but we want title always readable? 
+            User wanted "show the books cover page as the book". 
+            Usually covers have titles. 
+            But if I remove the title overlay, and the cover fails or doesn't have clear text, it's bad.
+            Let's keep the title but maybe make it subtle or only appear on hover if cover loads?
+            For now, let's keep it but maybe add a gradient at bottom to ensure readability if cover is busy.
+        */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 transition-opacity duration-300" />
 
         {/* Book spine effect */}
         <div className="absolute left-0 top-0 bottom-0 w-3 bg-black/20" />
