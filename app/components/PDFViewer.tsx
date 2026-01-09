@@ -32,16 +32,66 @@ export default function PDFViewer({ file }: PDFViewerProps) {
   );
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [showOutline, setShowOutline] = useState<boolean>(false);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(320);
+  const [isResizing, setIsResizing] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  const startResizing = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e: MouseEvent) => {
+      if (isResizing) {
+        const newWidth = e.clientX;
+        if (newWidth < 200) {
+          setSidebarWidth(200);
+        } else if (newWidth > 600) {
+          setSidebarWidth(600);
+        } else {
+          setSidebarWidth(newWidth);
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
+  const [pageLabels, setPageLabels] = useState<string[] | null>(null);
+
   const onDocumentLoadSuccess = useCallback(
-    async ({
-      numPages,
-      ...doc
-    }: { numPages: number } & pdfjs.PDFDocumentProxy) => {
-      setNumPages(numPages);
+    async (pdf: pdfjs.PDFDocumentProxy) => {
+      setNumPages(pdf.numPages);
+      const doc = pdf;
       setLoading(false);
+
+      try {
+        const labels = await doc.getPageLabels();
+        if (labels && labels.length > 0) {
+          setPageLabels(labels);
+        } else {
+          setPageLabels(null);
+        }
+      } catch (err) {
+        console.error("Error getting page labels:", err);
+        setPageLabels(null);
+      }
 
       // Extract outline/table of contents
       try {
@@ -53,35 +103,69 @@ export default function PDFViewer({ file }: PDFViewerProps) {
             return Promise.all(
               items.map(async (item) => {
                 let pageNumber: number | undefined;
+
                 if (item.dest) {
                   try {
-                    const dest =
-                      typeof item.dest === "string"
-                        ? await doc.getDestination(item.dest)
-                        : item.dest;
-                    if (dest && Array.isArray(dest)) {
-                      const ref = dest[0];
-                      pageNumber = (await doc.getPageIndex(ref)) + 1;
+                    // Resolve destination if it's a string (named destination)
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    let dest: any = item.dest;
+                    if (typeof dest === "string") {
+                      dest = await doc.getDestination(dest);
                     }
-                  } catch {
-                    // Ignore errors
+
+                    // If we have an array, the first element is usually the page reference
+                    if (Array.isArray(dest) && dest.length > 0) {
+                      const ref = dest[0];
+                      // ref can be a Ref object { num, gen } or sometimes null/undefined
+                      if (ref) {
+                        try {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const index = await doc.getPageIndex(ref as any);
+                          // pdfjs uses 0-based index, we use 1-based
+                          if (index !== -1) {
+                            pageNumber = index + 1;
+                          }
+                        } catch (err) {
+                          console.warn(
+                            "Failed to get page index for ref:",
+                            ref,
+                            err
+                          );
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    console.warn(
+                      "Failed to resolve destination:",
+                      item.dest,
+                      err
+                    );
                   }
                 }
+
+                // Recursively resolve children
+                let children: OutlineItem[] | undefined;
+                if (item.items && item.items.length > 0) {
+                  children = await resolveOutline(item.items as OutlineItem[]);
+                }
+
                 return {
                   ...item,
                   pageNumber,
-                  items: item.items
-                    ? await resolveOutline(item.items as OutlineItem[])
-                    : undefined,
+                  items: children,
                 };
               })
             );
           };
+
           const resolved = await resolveOutline(outlineData as OutlineItem[]);
           setOutline(resolved);
+        } else {
+          setOutline([]);
         }
-      } catch {
-        // PDF doesn't have an outline
+      } catch (err) {
+        console.error("Error getting outline:", err);
+        setOutline([]);
       }
     },
     []
@@ -165,21 +249,12 @@ export default function PDFViewer({ file }: PDFViewerProps) {
   const [jumpToPage, setJumpToPage] = useState<string>("");
 
   // Scroll to page by calculating position based on estimated page height
-  const goToPage = useCallback(
-    (pageNum: number) => {
-      if (!containerRef.current || pageNum < 1 || pageNum > numPages) return;
-
-      const estimatedHeight = pageSize.height ? pageSize.height * scale : 800;
-      const gap = 24; // gap-6 = 1.5rem = 24px
-      const targetScroll = (pageNum - 1) * (estimatedHeight + gap);
-
-      containerRef.current.scrollTo({
-        top: targetScroll,
-        behavior: "smooth",
-      });
-    },
-    [numPages, pageSize.height, scale]
-  );
+  const goToPage = useCallback((pageNum: number) => {
+    const pageEl = pageRefs.current.get(pageNum);
+    if (pageEl) {
+      pageEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   const handleJumpToPage = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -191,7 +266,6 @@ export default function PDFViewer({ file }: PDFViewerProps) {
 
   const handleOutlineClick = (pageNum: number) => {
     goToPage(pageNum);
-    setShowOutline(false);
   };
 
   // Handle internal PDF link clicks
@@ -227,7 +301,9 @@ export default function PDFViewer({ file }: PDFViewerProps) {
             </span>
             {item.pageNumber && (
               <span className="text-zinc-500 text-xs shrink-0">
-                p.{item.pageNumber}
+                {pageLabels
+                  ? pageLabels[item.pageNumber - 1]
+                  : `p.${item.pageNumber}`}
               </span>
             )}
           </button>
@@ -243,7 +319,15 @@ export default function PDFViewer({ file }: PDFViewerProps) {
     <div className="flex h-full">
       {/* Sidebar - Table of Contents */}
       {showOutline && (
-        <div className="w-80 h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0">
+        <div
+          className="h-full bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0 relative"
+          style={{ width: sidebarWidth }}
+        >
+          {/* Resize Handle */}
+          <div
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-violet-500 transition-colors z-10"
+            onMouseDown={startResizing}
+          />
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
             <h2 className="font-semibold text-white">Table of Contents</h2>
             <button
@@ -396,7 +480,7 @@ export default function PDFViewer({ file }: PDFViewerProps) {
                         height: estimatedPageHeight,
                       }}
                     >
-                      Page {pageNum}
+                      {pageLabels ? pageLabels[index] : `Page ${pageNum}`}
                     </div>
                   )}
                 </div>
